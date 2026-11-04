@@ -44,6 +44,24 @@ button:disabled { cursor: wait !important; }
 .auth-modal form label { display: grid; gap: 7px; color: #556159; font-size: 13px; font-weight: 700; }
 .auth-modal input { width: 100%; height: 48px; border: 1px solid #d9ddd6; border-radius: 7px; padding: 0 14px; background: #fbfbf8; }
 .auth-switch { width: 100%; border: 0; margin-top: 16px; padding: 10px; color: #173f2a; background: transparent; text-decoration: underline; }
+.profile-modal { width: min(440px, calc(100vw - 32px)); padding: 28px; border-radius: 14px; background: white; animation: factqr-modal-in .28s ease-out both; }
+.profile-modal-heading { display: flex; align-items: start; justify-content: space-between; }
+.profile-modal-heading > div > span { color: #708079; font-size: 12px; text-transform: uppercase; letter-spacing: .12em; }
+.profile-modal-heading h2 { margin: 4px 0 22px; color: #173f2a; font: 600 32px 'Fraunces', serif; }
+.profile-summary { display: flex; align-items: center; gap: 14px; padding: 18px; border-radius: 12px; background: #f2f4ed; }
+.profile-summary > div:last-child { display: grid; gap: 4px; }
+.profile-summary strong { color: #173f2a; }
+.profile-summary small { color: #687069; overflow-wrap: anywhere; }
+.profile-avatar { width: 48px; height: 48px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 50%; color: white; background: #173f2a; font: 600 22px 'Fraunces', serif; }
+.profile-details { display: grid; gap: 12px; margin: 20px 0; }
+.profile-details div { display: grid; grid-template-columns: 120px 1fr; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid #ecece6; }
+.profile-details dt { color: #708079; font-size: 13px; }
+.profile-details dd { margin: 0; color: #173f2a; font-weight: 700; overflow-wrap: anywhere; }
+.profile-modal button { transition: transform .2s ease, background-color .2s ease, border-color .2s ease; }
+.profile-modal button:active { transform: scale(.98); }
+.profile-sales-button, .profile-logout-button { width: 100%; min-height: 46px; border-radius: 7px; font-weight: 700; }
+.profile-sales-button { border: 1px solid #173f2a; margin-top: 4px; color: #173f2a; background: white; }
+.profile-logout-button { border: 0; margin-top: 10px; color: white; background: #173f2a; }
 @keyframes factqr-enter { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes factqr-card-in { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: translateY(0); } }
 @keyframes factqr-fade { from { opacity: 0; } to { opacity: 1; } }

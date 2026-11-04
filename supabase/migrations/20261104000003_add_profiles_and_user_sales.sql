@@ -46,7 +46,7 @@ begin
     new.email,
     coalesce(new.raw_user_meta_data->>'full_name', split_part(coalesce(new.email, ''), '@', 1)),
     case
-      when new.email = 'admin@factqr.local' then 'admin'
+      when new.email = 'admin@factqr.com' then 'admin'
       else 'customer'
     end
   )
@@ -67,6 +67,6 @@ select
   id,
   email,
   coalesce(raw_user_meta_data->>'full_name', split_part(coalesce(email, ''), '@', 1)),
-  case when email = 'admin@factqr.local' then 'admin' else 'customer' end
+  case when email = 'admin@factqr.com' then 'admin' else 'customer' end
 from auth.users
 on conflict (id) do nothing;

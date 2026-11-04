@@ -18,3 +18,6 @@ port = 54323
 [auth]
 enabled = true
 site_url = "http://localhost:5173"
+
+[auth.email]
+enable_confirmations = false

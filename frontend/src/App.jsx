@@ -1,10 +1,10 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useMemo, useState } from 'react'
 import logoImage from './assets/logo.jpeg'
-import americanoImage from './assets/cafe-americano.png'
-import sandwichImage from './assets/sandwich.png'
-import juiceImage from './assets/jugo-natural.png'
-import cakeImage from './assets/trozo-pastel.png'
+import americanoImage from './assets/cafe_americano.webp'
+import sandwichImage from './assets/sandwich_artesanal.webp'
+import juiceImage from './assets/jugo_naranja.webp'
+import cakeImage from './assets/porcion_pastel.webp'
 import heroImage from './assets/hero.png'
 import { supabase } from './supabaseClient'
 
@@ -42,6 +42,7 @@ export default function App() {
   const [profile, setProfile] = useState(null)
   const [authMode, setAuthMode] = useState('login')
   const [showAuth, setShowAuth] = useState(false)
+  const [showProfile, setShowProfile] = useState(false)
   const [sales, setSales] = useState([])
   const [isLoadingSales, setIsLoadingSales] = useState(false)
   const [products, setProducts] = useState(() => {
@@ -129,7 +130,13 @@ export default function App() {
       : await supabase.auth.signInWithPassword({ email, password })
 
     if (result.error) {
-      setError(result.error.message)
+      if (authMode === 'login' && result.error.message.toLowerCase().includes('invalid login credentials')) {
+        setError('Correo o contraseña incorrectos. Si acabas de desactivar la confirmación, restablece o verifica la cuenta en Supabase Auth.')
+      } else if (authMode === 'login' && result.error.message.toLowerCase().includes('email not confirmed')) {
+        setError('La cuenta aún no está confirmada. Confírmala desde Supabase Auth y vuelve a iniciar sesión.')
+      } else {
+        setError(result.error.message)
+      }
       return
     }
     if (authMode === 'register' && !result.data.session) {
@@ -141,6 +148,7 @@ export default function App() {
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
+    setShowProfile(false)
     setSales([])
     setPage('home')
   }
@@ -329,7 +337,7 @@ export default function App() {
         </nav>
         <div className="header-actions">
           <label className="search-box"><Icon name="search" /><input value={search} onChange={(event) => { setSearch(event.target.value); if (page === 'home') navigate('catalog') }} placeholder="Buscar" aria-label="Buscar productos" /></label>
-          <button className="icon-button" type="button" aria-label={session ? 'Cerrar sesion' : 'Iniciar sesion'} onClick={() => session ? handleLogout() : setShowAuth(true)}><Icon name="user" /></button>
+          <button className="icon-button" type="button" aria-label={session ? 'Ver perfil' : 'Iniciar sesion'} onClick={() => session ? setShowProfile(true) : setShowAuth(true)}><Icon name="user" /></button>
           <button className="cart-button" type="button" onClick={() => navigate('cart')}><Icon name="cart" /><span>Carrito</span><b>{itemCount}</b></button>
         </div>
       </header>
@@ -533,6 +541,43 @@ export default function App() {
             <button className="auth-switch" type="button" onClick={() => { setError(''); setAuthMode(authMode === 'login' ? 'register' : 'login') }}>
               {authMode === 'login' ? 'No tienes cuenta? Registrate' : 'Ya tienes cuenta? Inicia sesion'}
             </button>
+          </section>
+        </div>
+      )}
+
+      {showProfile && session && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowProfile(false) }}>
+          <section className="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+            <div className="profile-modal-heading">
+              <div>
+                <span>Mi cuenta</span>
+                <h2 id="profile-title">Perfil FactQR</h2>
+              </div>
+              <button className="icon-button" type="button" onClick={() => setShowProfile(false)} aria-label="Cerrar"><Icon name="close" /></button>
+            </div>
+            <div className="profile-summary">
+              <div className="profile-avatar" aria-hidden="true">{(profile?.full_name || session.user.email || 'F').charAt(0).toUpperCase()}</div>
+              <div>
+                <strong>{profile?.full_name || session.user.user_metadata?.full_name || 'Usuario FactQR'}</strong>
+                <small>{session.user.email}</small>
+              </div>
+            </div>
+            <dl className="profile-details">
+              <div><dt>Correo</dt><dd>{session.user.email}</dd></div>
+              <div><dt>Tipo de cuenta</dt><dd>{profile?.role === 'admin' ? 'Administrador' : 'Cliente'}</dd></div>
+            </dl>
+            <button
+              className="profile-sales-button"
+              type="button"
+              onClick={() => {
+                setShowProfile(false)
+                navigate('sales')
+                loadSales()
+              }}
+            >
+              Ver mis compras
+            </button>
+            <button className="profile-logout-button" type="button" onClick={handleLogout}>Cerrar sesion</button>
           </section>
         </div>
       )}
