@@ -1,8 +1,7 @@
 import { corsHeaders, jsonResponse } from '../_shared/http.ts'
 import { supabaseRequest } from '../_shared/supabase.ts'
 import { createFactusPayCollection, factusPayToken } from '../factus-pay-client.ts'
-
-const demoMerchantId = '00000000-0000-4000-8000-000000000001'
+import { getAuthenticatedUser } from '../_shared/auth.ts'
 
 Deno.serve(async (request) => {
   if (request.method === 'OPTIONS') {
@@ -14,6 +13,15 @@ Deno.serve(async (request) => {
   }
 
   try {
+    let merchantId: string
+    try {
+      merchantId = (await getAuthenticatedUser(request)).id
+    } catch {
+      return jsonResponse({
+        error: { code: 'UNAUTHENTICATED', message: 'Inicia sesion para crear un pedido.' },
+      }, 401)
+    }
+
     const body = await request.json()
     const items = Array.isArray(body.items) ? body.items : []
     const total = items.reduce(
@@ -49,7 +57,7 @@ Deno.serve(async (request) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        merchant_id: demoMerchantId,
+        merchant_id: merchantId,
         mode: body.mode || 'A',
         status: 'PAYMENT_PENDING',
         total,
@@ -69,7 +77,7 @@ Deno.serve(async (request) => {
           taxCode?: string
           taxRate?: number
         }) => ({
-          merchant_id: demoMerchantId,
+          merchant_id: merchantId,
           order_id: order.id,
           code_reference: item.code,
           name: item.name,
@@ -110,7 +118,7 @@ Deno.serve(async (request) => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        merchant_id: demoMerchantId,
+        merchant_id: merchantId,
         order_id: order.id,
         reference_code: referenceCode,
         amount: total,

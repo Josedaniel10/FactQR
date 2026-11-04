@@ -1,11 +1,18 @@
 import { QRCodeSVG } from 'qrcode.react'
 import { useEffect, useMemo, useState } from 'react'
+import logoImage from './assets/logo.jpeg'
+import americanoImage from './assets/cafe-americano.png'
+import sandwichImage from './assets/sandwich.png'
+import juiceImage from './assets/jugo-natural.png'
+import cakeImage from './assets/trozo-pastel.png'
+import heroImage from './assets/hero.png'
+import { supabase } from './supabaseClient'
 
 const initialProducts = [
-  { id: 'coffee', name: 'Americano', price: 10000, category: 'Bebidas', accent: '#c99b73', description: 'Cafe de preparacion directa, tostado medio y final limpio.', badge: 'Popular' },
-  { id: 'sandwich', name: 'Sandwich artesanal', price: 12000, category: 'Comidas', accent: '#d9a441', description: 'Sandwich preparado al momento con ingredientes frescos.', badge: 'Nuevo' },
-  { id: 'juice', name: 'Jugo natural', price: 10000, category: 'Bebidas', accent: '#ef8b5b', description: 'Jugo natural de fruta seleccionada y servido bien frio.', badge: '' },
-  { id: 'cake', name: 'Porcion de torta', price: 12000, category: 'Postres', accent: '#b78368', description: 'Porcion generosa con textura suave y sabor casero.', badge: 'Favorito' },
+  { id: 'coffee', name: 'Americano', price: 10000, category: 'Bebidas', accent: '#c99b73', description: 'Cafe de preparacion directa, tostado medio y final limpio.', badge: 'Popular', image: americanoImage },
+  { id: 'sandwich', name: 'Sandwich artesanal', price: 12000, category: 'Comidas', accent: '#d9a441', description: 'Sandwich preparado al momento con ingredientes frescos.', badge: 'Nuevo', image: sandwichImage },
+  { id: 'juice', name: 'Jugo natural', price: 10000, category: 'Bebidas', accent: '#ef8b5b', description: 'Jugo natural de fruta seleccionada y servido bien frio.', badge: '', image: juiceImage },
+  { id: 'cake', name: 'Porcion de torta', price: 12000, category: 'Postres', accent: '#b78368', description: 'Porcion generosa con textura suave y sabor casero.', badge: 'Favorito', image: cakeImage },
 ]
 
 const categories = ['Todos', 'Bebidas', 'Comidas', 'Postres']
@@ -15,6 +22,7 @@ const paymentStatusUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/
 const simulatePaymentUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/simulate-payment'
 const issueInvoiceUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/issue-invoice'
 const sendInvoiceEmailUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/send-invoice-email'
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 function Icon({ name, size = 20 }) {
   const paths = {
@@ -30,9 +38,21 @@ function Icon({ name, size = 20 }) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null)
+  const [profile, setProfile] = useState(null)
+  const [authMode, setAuthMode] = useState('login')
+  const [showAuth, setShowAuth] = useState(false)
+  const [sales, setSales] = useState([])
+  const [isLoadingSales, setIsLoadingSales] = useState(false)
   const [products, setProducts] = useState(() => {
     try {
-      return JSON.parse(localStorage.getItem('factqr-products')) || initialProducts
+      const storedProducts = JSON.parse(localStorage.getItem('factqr-products'))
+      if (!Array.isArray(storedProducts)) return initialProducts
+
+      return storedProducts.map((product) => {
+        const currentProduct = initialProducts.find((item) => item.id === product.id)
+        return currentProduct ? { ...product, image: currentProduct.image } : product
+      })
     } catch {
       return initialProducts
     }
@@ -55,7 +75,84 @@ export default function App() {
   const [invoiceEmailSent, setInvoiceEmailSent] = useState(false)
 
   useEffect(() => {
-    localStorage.setItem('factqr-products', JSON.stringify(products))
+    supabase.auth.getSession().then(({ data }) => setSession(data.session))
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession)
+    })
+    return () => subscription.subscription.unsubscribe()
+  }, [])
+
+  useEffect(() => {
+    if (!session?.user) {
+      setProfile(null)
+      return
+    }
+
+    supabase
+      .from('profiles')
+      .select('id,email,full_name,role')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => setProfile(data))
+  }, [session?.user?.id])
+
+  const loadSales = async () => {
+    if (!session?.user) {
+      setShowAuth(true)
+      return
+    }
+    setIsLoadingSales(true)
+    const { data, error: salesError } = await supabase
+      .from('orders')
+      .select('id,status,total,created_at,order_items(name,quantity,unit_price),payments(status,reference_code,amount,collected_at),invoices(number,is_validated,public_url)')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (salesError) setError(salesError.message)
+    setSales(data || [])
+    setIsLoadingSales(false)
+  }
+
+  const handleAuth = async (event) => {
+    event.preventDefault()
+    const form = new FormData(event.currentTarget)
+    const email = String(form.get('email')).trim()
+    const password = String(form.get('password'))
+    const fullName = String(form.get('fullName') || '').trim()
+    setError('')
+
+    const result = authMode === 'register'
+      ? await supabase.auth.signUp({
+          email,
+          password,
+          options: { data: { full_name: fullName } },
+        })
+      : await supabase.auth.signInWithPassword({ email, password })
+
+    if (result.error) {
+      setError(result.error.message)
+      return
+    }
+    if (authMode === 'register' && !result.data.session) {
+      setError('Revisa tu correo para confirmar la cuenta.')
+      return
+    }
+    setShowAuth(false)
+  }
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setSales([])
+    setPage('home')
+  }
+
+  useEffect(() => {
+    const productsToStore = products.map((product) => {
+      const defaultProduct = initialProducts.find((item) => item.id === product.id)
+      if (!defaultProduct) return product
+      const { image, ...productWithoutImage } = product
+      return productWithoutImage
+    })
+    localStorage.setItem('factqr-products', JSON.stringify(productsToStore))
   }, [products])
 
   useEffect(() => {
@@ -94,6 +191,10 @@ export default function App() {
   })
 
   const handleCreatePayment = async () => {
+    if (!session) {
+      setShowAuth(true)
+      return
+    }
     setError('')
     setIsCreatingPayment(true)
     setPayment(null)
@@ -101,7 +202,11 @@ export default function App() {
     try {
       const response = await fetch(createPaymentUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+          apikey: supabaseAnonKey,
+        },
         body: JSON.stringify({ mode: 'A', paymentMethod, items: cartItems.map((item) => ({ code: item.id, name: item.name, price: item.price, quantity: item.quantity })) }),
       })
       const result = await response.json()
@@ -155,11 +260,21 @@ export default function App() {
     try {
       const response = await fetch(sendInvoiceEmailUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${supabaseAnonKey}`,
+          apikey: supabaseAnonKey,
+        },
         body: JSON.stringify({ reference: payment.referenceCode, email: invoiceEmail }),
       })
       const result = await response.json()
-      if (!response.ok) throw new Error(result.error?.message || 'No se pudo enviar la factura.')
+      if (!response.ok) {
+        const factusErrors = result.error?.details?.data?.errors
+        const validationMessage = factusErrors && typeof factusErrors === 'object'
+          ? Object.values(factusErrors).flat().join(' ')
+          : result.error?.details?.message || result.error?.details?.data?.message
+        throw new Error(validationMessage || result.error?.message || 'No se pudo enviar la factura.')
+      }
       setInvoiceEmailSent(true)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'No se pudo enviar la factura.')
@@ -203,17 +318,18 @@ export default function App() {
       <div className="announcement">Sandbox seguro · Factus Pay integrado · Facturas demo disponibles</div>
       <header className="site-header">
         <button className="brand" type="button" onClick={() => navigate('home')} aria-label="Ir al inicio">
-          <span className="brand-mark">FQ</span><span>FactQR</span>
+          <img className="brand-logo" src={logoImage} alt="" /><span>FactQR</span>
         </button>
         <nav aria-label="Navegacion principal">
           <button className={page === 'home' ? 'active' : ''} type="button" onClick={() => navigate('home')}>Inicio</button>
           <button className={page === 'catalog' ? 'active' : ''} type="button" onClick={() => navigate('catalog')}>Catalogo</button>
           <button type="button" onClick={() => { navigate('catalog'); setCategory('Bebidas') }}>Bebidas</button>
           <button type="button" onClick={() => { navigate('catalog'); setCategory('Comidas') }}>Comidas</button>
+          {session && <button className={page === 'sales' ? 'active' : ''} type="button" onClick={() => { navigate('sales'); loadSales() }}>Mis compras</button>}
         </nav>
         <div className="header-actions">
           <label className="search-box"><Icon name="search" /><input value={search} onChange={(event) => { setSearch(event.target.value); if (page === 'home') navigate('catalog') }} placeholder="Buscar" aria-label="Buscar productos" /></label>
-          <button className="icon-button" type="button" aria-label="Cuenta"><Icon name="user" /></button>
+          <button className="icon-button" type="button" aria-label={session ? 'Cerrar sesion' : 'Iniciar sesion'} onClick={() => session ? handleLogout() : setShowAuth(true)}><Icon name="user" /></button>
           <button className="cart-button" type="button" onClick={() => navigate('cart')}><Icon name="cart" /><span>Carrito</span><b>{itemCount}</b></button>
         </div>
       </header>
@@ -222,8 +338,14 @@ export default function App() {
 
   const ProductVisual = ({ product, large = false }) => (
     <div className={`product-visual ${large ? 'large' : ''}`} style={{ '--accent': product.accent }}>
-      <span className="visual-orbit" /><span className="visual-product">{product.name.slice(0, 1)}</span>
-      <span className="visual-shadow" />
+      {product.image ? (
+        <img className="product-photo" src={product.image} alt={product.name} />
+      ) : (
+        <>
+          <span className="visual-orbit" /><span className="visual-product">{product.name.slice(0, 1)}</span>
+          <span className="visual-shadow" />
+        </>
+      )}
     </div>
   )
 
@@ -244,7 +366,7 @@ export default function App() {
 
   const Footer = () => (
     <footer>
-      <div className="footer-brand"><span className="brand-mark">FQ</span><div><strong>FactQR</strong><p>Cobros simples, ventas claras y facturacion integrada.</p></div></div>
+      <div className="footer-brand"><img className="brand-logo" src={logoImage} alt="" /><div><strong>FactQR</strong><p>Cobros simples, ventas claras y facturacion integrada.</p></div></div>
       <div><strong>Explorar</strong><button type="button" onClick={() => navigate('home')}>Inicio</button><button type="button" onClick={() => navigate('catalog')}>Catalogo</button></div>
       <div><strong>FactQR</strong><button type="button" onClick={() => setShowAddProduct(true)}>Agregar producto</button><button type="button">Soporte</button></div>
       <div><strong>Estado</strong><span className="footer-status"><i />SandBox operativo</span><small>Ambiente de demostracion</small></div>
@@ -263,7 +385,7 @@ export default function App() {
               <p>Organiza productos, crea pedidos y recibe pagos con QR desde una experiencia rapida y profesional.</p>
               <div className="hero-actions"><button className="primary-button" type="button" onClick={() => navigate('catalog')}>Explorar productos <Icon name="arrow" /></button><button className="text-button" type="button" onClick={() => setShowAddProduct(true)}>Agregar un producto</button></div>
             </div>
-            <div className="hero-art"><div className="hero-disc" /><div className="hero-card"><span>Venta lista</span><strong>$32.000</strong><small><Icon name="check" /> Pago confirmado</small></div><div className="hero-phone"><div /><span /></div></div>
+            <div className="hero-art"><img className="hero-image" src={heroImage} alt="Venta FactQR con pago mediante codigo QR" /><div className="hero-card"><span>Venta lista</span><strong>$32.000</strong><small><Icon name="check" /> Pago confirmado</small></div></div>
           </section>
 
           <section className="feature-strip">
@@ -352,6 +474,7 @@ export default function App() {
                           {isSendingInvoiceEmail ? 'Enviando...' : 'Enviar'}
                         </button>
                       </div>
+                      <small>Sandbox: utiliza un correo previamente autorizado en tu cuenta Factus.</small>
                       {invoiceEmailSent && <small className="invoice-email-success" role="status">Factura enviada correctamente.</small>}
                     </form>
                   </div>
@@ -361,6 +484,57 @@ export default function App() {
             </div>
           )}
         </main>
+      )}
+
+      {page === 'sales' && (
+        <main className="sales-page">
+          <div className="page-heading"><span>{profile?.full_name || session?.user?.email}</span><h1>Mis compras</h1><p>Consulta tus pedidos, pagos y facturas.</p></div>
+          {isLoadingSales ? <div className="empty-state"><h2>Cargando compras...</h2></div> : sales.length === 0 ? (
+            <div className="empty-state"><h2>No tienes compras registradas</h2><p>Tus pedidos apareceran aqui despues del pago.</p></div>
+          ) : (
+            <section className="sales-list">
+              {sales.map((sale) => {
+                const payment = sale.payments?.[0]
+                const invoice = sale.invoices?.[0]
+                return (
+                  <article className="sale-card" key={sale.id}>
+                    <div className="sale-card-heading">
+                      <div><span>{new Date(sale.created_at).toLocaleString('es-CO')}</span><strong>{sale.id.slice(0, 8).toUpperCase()}</strong></div>
+                      <b>{sale.status}</b>
+                    </div>
+                    <div className="sale-items">
+                      {sale.order_items?.map((item, index) => <span key={`${sale.id}-${index}`}>{item.quantity} x {item.name}</span>)}
+                    </div>
+                    <div className="sale-totals">
+                      <span>Pago: <strong>{payment?.status || 'PENDIENTE'}</strong></span>
+                      <span>Factura: <strong>{invoice?.number || (invoice ? 'En proceso' : 'No emitida')}</strong></span>
+                      <strong>{formatCurrency.format(sale.total)}</strong>
+                    </div>
+                    {invoice?.public_url && <a href={invoice.public_url} target="_blank" rel="noreferrer">Ver documento</a>}
+                  </article>
+                )
+              })}
+            </section>
+          )}
+        </main>
+      )}
+
+      {showAuth && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowAuth(false) }}>
+          <section className="auth-modal" role="dialog" aria-modal="true" aria-labelledby="auth-title">
+            <div className="auth-modal-heading"><div><span>FactQR</span><h2 id="auth-title">{authMode === 'login' ? 'Iniciar sesion' : 'Crear cuenta'}</h2></div><button className="icon-button" type="button" onClick={() => setShowAuth(false)} aria-label="Cerrar"><Icon name="close" /></button></div>
+            <form onSubmit={handleAuth}>
+              {authMode === 'register' && <label>Nombre completo<input name="fullName" required autoComplete="name" /></label>}
+              <label>Correo electronico<input name="email" type="email" required autoComplete="email" /></label>
+              <label>Contrasena<input name="password" type="password" minLength={6} required autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} /></label>
+              {error && <p className="form-error">{error}</p>}
+              <button className="primary-button" type="submit">{authMode === 'login' ? 'Ingresar' : 'Registrarme'}</button>
+            </form>
+            <button className="auth-switch" type="button" onClick={() => { setError(''); setAuthMode(authMode === 'login' ? 'register' : 'login') }}>
+              {authMode === 'login' ? 'No tienes cuenta? Registrate' : 'Ya tienes cuenta? Inicia sesion'}
+            </button>
+          </section>
+        </div>
       )}
 
       {showAddProduct && (

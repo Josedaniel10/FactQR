@@ -13,49 +13,80 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json()
     const reference = String(body.reference || '').trim()
+    const requestedInvoiceNumber = String(body.invoiceNumber || '').trim()
     const email = String(body.email || '').trim()
 
-    if (!reference) {
+    if (!reference && !requestedInvoiceNumber) {
       return jsonResponse({ error: { code: 'REFERENCE_REQUIRED' } }, 400)
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return jsonResponse({ error: { code: 'INVALID_EMAIL' } }, 400)
     }
 
-    const invoiceResult = await supabaseRequest(
-      `invoices?reference_code=eq.${encodeURIComponent(reference)}&select=number`,
-    )
-    const invoice = (invoiceResult.body as Array<{ number: string }>)[0]
-    if (!invoice?.number) {
+    let invoiceNumber = requestedInvoiceNumber
+    if (!invoiceNumber) {
+      const invoiceResult = await supabaseRequest(
+        `invoices?reference_code=eq.${encodeURIComponent(reference)}&select=number`,
+      )
+      const invoice = (invoiceResult.body as Array<{ number: string }>)[0]
+      invoiceNumber = String(invoice?.number || '').trim()
+    }
+    if (!invoiceNumber) {
       return jsonResponse({ error: { code: 'INVOICE_NOT_FOUND' } }, 404)
     }
 
     const { baseUrl, accessToken } = await getFactusAccessToken()
-    const response = await fetch(`${baseUrl}/v2/bills/${encodeURIComponent(invoice.number)}/send-email`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ email }),
-    })
-    const result = await response.json()
+    const numberCandidates = [invoiceNumber]
+    const numericInvoiceNumber = invoiceNumber.replace(/^SETP/i, '')
+    if (numericInvoiceNumber !== invoiceNumber) {
+      numberCandidates.push(numericInvoiceNumber)
+    }
 
-    if (!response.ok) {
+    let lastResponse: Response | null = null
+    let lastResult: Record<string, unknown> = {}
+    let sentInvoiceNumber = invoiceNumber
+
+    for (const candidate of numberCandidates) {
+      const response = await fetch(`${baseUrl}/v2/bills/${encodeURIComponent(candidate)}/send-email`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email }),
+      })
+      const result = await response.json().catch(() => ({})) as Record<string, unknown>
+      lastResponse = response
+      lastResult = result
+
+      if (response.ok) {
+        sentInvoiceNumber = candidate
+        break
+      }
+
+      if (response.status !== 404) {
+        break
+      }
+    }
+
+    if (!lastResponse?.ok) {
       return jsonResponse({
         error: {
           code: 'FACTUS_EMAIL_FAILED',
-          message: result.message || 'No se pudo enviar la factura por correo.',
+          message: String(lastResult.message || lastResult.detail || 'No se pudo enviar la factura por correo.'),
+          details: lastResult.errors || lastResult.error || lastResult,
+          invoiceNumber,
+          triedInvoiceNumbers: numberCandidates,
         },
-      }, response.status === 401 ? 502 : response.status)
+      }, lastResponse?.status === 401 ? 502 : (lastResponse?.status || 502))
     }
 
     return jsonResponse({
       data: {
         sent: true,
         email,
-        invoiceNumber: invoice.number,
+        invoiceNumber: sentInvoiceNumber,
       },
     })
   } catch (error) {
