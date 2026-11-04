@@ -14,6 +14,7 @@ const createPaymentUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/
 const paymentStatusUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/payment-status'
 const simulatePaymentUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/simulate-payment'
 const issueInvoiceUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/issue-invoice'
+const sendInvoiceEmailUrl = 'https://pvbpqowxjpqjkjwglkes.supabase.co/functions/v1/send-invoice-email'
 
 function Icon({ name, size = 20 }) {
   const paths = {
@@ -49,6 +50,9 @@ export default function App() {
   const [isCreatingPayment, setIsCreatingPayment] = useState(false)
   const [isSimulatingPayment, setIsSimulatingPayment] = useState(false)
   const [isIssuingInvoice, setIsIssuingInvoice] = useState(false)
+  const [invoiceEmail, setInvoiceEmail] = useState('')
+  const [isSendingInvoiceEmail, setIsSendingInvoiceEmail] = useState(false)
+  const [invoiceEmailSent, setInvoiceEmailSent] = useState(false)
 
   useEffect(() => {
     localStorage.setItem('factqr-products', JSON.stringify(products))
@@ -139,6 +143,28 @@ export default function App() {
       setError(requestError instanceof Error ? requestError.message : 'No se pudo emitir la factura.')
     } finally {
       setIsIssuingInvoice(false)
+    }
+  }
+
+  const handleSendInvoiceEmail = async (event) => {
+    event.preventDefault()
+    if (!payment || !invoice) return
+    setError('')
+    setInvoiceEmailSent(false)
+    setIsSendingInvoiceEmail(true)
+    try {
+      const response = await fetch(sendInvoiceEmailUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reference: payment.referenceCode, email: invoiceEmail }),
+      })
+      const result = await response.json()
+      if (!response.ok) throw new Error(result.error?.message || 'No se pudo enviar la factura.')
+      setInvoiceEmailSent(true)
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'No se pudo enviar la factura.')
+    } finally {
+      setIsSendingInvoiceEmail(false)
     }
   }
 
@@ -307,7 +333,29 @@ export default function App() {
                 {payment?.provider === 'FACTUS_PAY' && payment.status === 'READY' && <div className="checkout-payment"><h3>Escanea tu QR</h3>{payment.qr?.startsWith('data:image/') ? <img src={payment.qr} alt="QR Factus Pay" /> : <QRCodeSVG value={payment.qr || payment.referenceCode} size={180} />}<small>{payment.referenceCode}</small><button className="secondary-button" type="button" disabled={isSimulatingPayment} onClick={handleSimulatePayment}>{isSimulatingPayment ? 'Confirmando...' : 'Simular pago aprobado'}</button></div>}
                 {payment?.status === 'PAID' && <div className="paid-state"><span><Icon name="check" /></span><div><strong>Pago confirmado</strong><small>{payment.provider === 'CASH' ? 'Efectivo recibido' : payment.referenceCode}</small></div></div>}
                 {payment?.status === 'PAID' && !invoice && <button className="secondary-button" type="button" disabled={isIssuingInvoice} onClick={handleIssueInvoice}>{isIssuingInvoice ? 'Facturando...' : 'Emitir factura demo'}</button>}
-                {invoice && <div className="invoice-state"><strong>Factura {invoice.number}</strong>{invoice.publicUrl && <a href={invoice.publicUrl} target="_blank" rel="noreferrer">Ver documento</a>}</div>}
+                {invoice && (
+                  <div className="invoice-state">
+                    <strong>Factura {invoice.number}</strong>
+                    {invoice.publicUrl && <a href={invoice.publicUrl} target="_blank" rel="noreferrer">Ver documento</a>}
+                    <form className="invoice-email-form" onSubmit={handleSendInvoiceEmail}>
+                      <label htmlFor="invoice-email">Enviar por correo</label>
+                      <div>
+                        <input
+                          id="invoice-email"
+                          type="email"
+                          required
+                          value={invoiceEmail}
+                          onChange={(event) => setInvoiceEmail(event.target.value)}
+                          placeholder="correo@ejemplo.com"
+                        />
+                        <button className="secondary-button" type="submit" disabled={isSendingInvoiceEmail}>
+                          {isSendingInvoiceEmail ? 'Enviando...' : 'Enviar'}
+                        </button>
+                      </div>
+                      {invoiceEmailSent && <small className="invoice-email-success" role="status">Factura enviada correctamente.</small>}
+                    </form>
+                  </div>
+                )}
                 {error && <p className="form-error" role="alert">{error}</p>}
               </aside>
             </div>

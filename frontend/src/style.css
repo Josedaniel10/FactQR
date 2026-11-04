@@ -121,6 +121,12 @@ button { cursor: pointer; }
 .paid-state > span { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #709a78; color: white; }
 .paid-state div { display: grid !important; }
 .invoice-state { display: grid !important; gap: 6px; }
+.invoice-email-form { display: grid; gap: 8px; margin-top: 10px; }
+.invoice-email-form label { font-size: 13px; font-weight: 700; }
+.invoice-email-form > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.invoice-email-form input { min-width: 0; height: 42px; border: 1px solid #cbd2c4; padding: 0 12px; background: white; }
+.invoice-email-form .secondary-button { width: auto; margin: 0; padding: 0 16px; }
+.invoice-email-success { color: #4f7657; font-weight: 700; }
 .empty-cart { max-width: 500px; display: grid; justify-items: center; gap: 10px; margin: 40px auto; text-align: center; }
 .empty-cart > span { width: 90px; height: 90px; display: grid; place-items: center; border-radius: 50%; background: #e8ebe2; font: 600 40px 'Fraunces', serif; }
 .modal-backdrop { position: fixed; z-index: 50; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(13,27,19,.62); backdrop-filter: blur(4px); }
