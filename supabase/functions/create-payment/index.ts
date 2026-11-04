@@ -36,6 +36,14 @@ Deno.serve(async (request) => {
       )
     }
 
+    const paymentMethod = String(body.paymentMethod || 'FACTUS_PAY').toUpperCase()
+    if (!['FACTUS_PAY', 'SIMULATION', 'CASH'].includes(paymentMethod)) {
+      return jsonResponse(
+        { error: { code: 'INVALID_PAYMENT_METHOD', message: 'Metodo de pago no valido.' } },
+        400,
+      )
+    }
+
     const referenceCode = `FQR-${crypto.randomUUID()}`
     const orderResult = await supabaseRequest('orders', {
       method: 'POST',
@@ -76,9 +84,17 @@ Deno.serve(async (request) => {
     const payBaseUrl = Deno.env.get('FACTUS_PAY_API_BASE_URL')?.trim()
     let qr = `SIMULATION:${referenceCode}`
     let provider = 'SIMULATION'
-
+    let paymentStatus = 'READY'
+    let collectedAt: string | null = null
     const factusPayAccessToken = factusPayToken()
-    if (payBaseUrl && factusPayAccessToken) {
+    if (paymentMethod === 'CASH') {
+      provider = 'CASH'
+      paymentStatus = 'PAID'
+      qr = ''
+      collectedAt = new Date().toISOString()
+    } else if (paymentMethod === 'SIMULATION') {
+      provider = 'SIMULATION'
+    } else if (payBaseUrl && factusPayAccessToken) {
       const token = factusPayAccessToken
       const collection = await createFactusPayCollection(payBaseUrl, token, referenceCode, Math.round(total))
       provider = 'FACTUS_PAY'
@@ -98,19 +114,28 @@ Deno.serve(async (request) => {
         order_id: order.id,
         reference_code: referenceCode,
         amount: total,
-        status: 'READY',
+        status: paymentStatus,
         qr_base64: qr,
         provider,
+        collected_at: collectedAt,
         qr_expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
       }),
     })
+
+    if (paymentStatus === 'PAID') {
+      await supabaseRequest(`orders?id=eq.${order.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'PAID', updated_at: new Date().toISOString() }),
+      })
+    }
 
     return jsonResponse({
       data: {
         orderId: order.id,
         referenceCode,
         amount: total,
-        status: 'READY',
+        status: paymentStatus,
         qr,
         provider,
       },
