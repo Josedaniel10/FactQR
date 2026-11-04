@@ -1,0 +1,8 @@
+{
+  "name": "factqr",
+  "private": true,
+  "scripts": {
+    "check:env": "node scripts/check-env.mjs",
+    "check": "npm run check:env && npm run build --prefix frontend"
+  }
+}

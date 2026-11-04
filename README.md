@@ -1,6 +1,6 @@
-# CobroFactura
+# FactQR
 
-CobroFactura is a mobile-first mini POS that links sandbox payments from Factus
+FactQR is a mobile-first mini POS that links sandbox payments from Factus
 Pay with validated invoices from Factus Invoicing.
 
 ## MVP flows
@@ -45,16 +45,42 @@ Supabase Postgres + Realtime
 
 ## Planned stack
 
-- React, TypeScript, Vite, and Tailwind CSS
+- React JavaScript, Vite, and CSS
 - Supabase Auth, Postgres, Realtime, and Edge Functions
 - Vercel or Netlify
-- TypeScript/Deno Edge Functions
+- JavaScript/Deno Edge Functions
 
 ## Local setup
 
 1. Copy `.env.example` to `.env`.
-2. Replace the fake values with sandbox credentials.
-3. Configure the Supabase project and deploy Edge Functions when implemented.
+2. Replace the fake values with sandbox credentials when you reach the API
+   integration phase.
+3. Install the frontend dependencies:
+   `cd frontend && npm install`
+4. Start the Phase 0 prototype: `npm run dev`
+5. Configure the Supabase project and deploy Edge Functions when implemented.
+
+Validate the local environment without printing secret values:
+
+```powershell
+npm run check
+```
+
+## Phase 1 backend
+
+- Postgres schema and Row Level Security policies are in
+  `supabase/migrations/`.
+- Shared configuration and HTTP utilities are in
+  `supabase/functions/_shared/`.
+- The sandbox health function is at `supabase/functions/health/`.
+- No Docker is required. Use the linked Supabase Cloud project and:
+  `npx supabase db push --remote`
+
+## Phase 0 resources
+
+- The React JavaScript frontend prototype is in `frontend/`.
+- The core Factus Invoicing collection is in
+  `docs/factus-postman-core.json`.
 
 Never commit `.env`, real credentials, access tokens, or webhook secrets.
 

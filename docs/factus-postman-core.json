@@ -1,0 +1,106 @@
+{
+  "info": {
+    "name": "FactQR - Factus Core",
+    "description": "Core Factus Invoicing sandbox requests for FactQR.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Get access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "url": "{{url_api}}/oauth/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "password" },
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "client_secret", "value": "{{client_secret}}" },
+                { "key": "username", "value": "{{email}}" },
+                { "key": "password", "value": "{{password}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Refresh access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/x-www-form-urlencoded" }
+            ],
+            "url": "{{url_api}}/oauth/token",
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                { "key": "grant_type", "value": "refresh_token" },
+                { "key": "client_id", "value": "{{client_id}}" },
+                { "key": "client_secret", "value": "{{client_secret}}" },
+                { "key": "refresh_token", "value": "{{refresh_token}}" }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Billing",
+      "item": [
+        {
+          "name": "List numbering ranges",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{url_api}}/v2/numbering-ranges"
+          }
+        },
+        {
+          "name": "Validate invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "url": "{{url_api}}/v2/bills/validate",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference_code\": \"ORDER-DEMO-001\",\n  \"document\": \"01\",\n  \"numbering_range_id\": 1,\n  \"operation_type\": \"10\",\n  \"send_email\": false,\n  \"payment_details\": [\n    { \"payment_form\": \"1\", \"payment_method_code\": \"10\", \"reference_code\": \"pago-demo-001\", \"amount\": \"11900\" }\n  ],\n  \"customer\": {\n    \"identification_document_code\": \"13\",\n    \"identification\": \"22222222222\",\n    \"names\": \"Consumidor Final\"\n  },\n  \"items\": [\n    {\n      \"code_reference\": \"coffee\", \"name\": \"Americano\", \"quantity\": \"1.00\", \"discount_rate\": \"0.00\",\n      \"price\": \"10000.00\", \"unit_measure_code\": \"94\", \"standard_code\": \"999\",\n      \"taxes\": [{ \"code\": \"01\", \"rate\": \"19.00\" }]\n    }\n  ]\n}",
+              "options": { "raw": { "language": "json" } }
+            }
+          }
+        },
+        {
+          "name": "Download invoice PDF",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": "{{url_api}}/v2/bills/:number/download-pdf"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "url_api", "value": "https://api-sandbox.factus.com.co" },
+    { "key": "client_id", "value": "" },
+    { "key": "client_secret", "value": "" },
+    { "key": "email", "value": "" },
+    { "key": "password", "value": "" },
+    { "key": "refresh_token", "value": "" },
+    { "key": "number", "value": "" },
+    { "key": "access_token", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{access_token}}", "type": "string" }]
+  }
+}
